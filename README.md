@@ -26,7 +26,7 @@ conda env create -f environment.yml
 Активируй окружение:
 
 ```bash
-conda activate vkr-fl-balancer
+conda activate task-balancer
 ```
 
 ---
@@ -42,7 +42,7 @@ conda env update -f environment.yml --prune
 И снова активируй (если ты в новом терминале):
 
 ```bash
-conda activate vkr-fl-balancer
+conda activate task-balancer
 ```
 
 `--prune` удаляет пакеты, которых больше нет в `environment.yml`, чтобы окружение не “захламлялось”.

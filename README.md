@@ -70,3 +70,11 @@ git add environment.yml
 git commit -m "Update conda environment dependencies"
 git push
 ```
+### 6) Создай файл .env в корне проекта и добавь в него строку подключения Neon (PostgreSQL):
+
+Пример .env представлен в .env.example 
+
+```bash
+DATABASE_URL=postgresql://USER:PASSWORD@HOST/dbname?sslmode=require
+```
+

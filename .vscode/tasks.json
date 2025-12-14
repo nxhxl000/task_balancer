@@ -1,0 +1,51 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Infra: Check bastion",
+      "type": "shell",
+      "options": {
+        "shell": {
+          "executable": "cmd.exe",
+          "args": ["/d", "/c"]
+        }
+      },
+      "command": "ssh -o BatchMode=yes -o ConnectTimeout=7 bastion \"bash -lc 'printf \"\"HOST: \"\"; hostname; printf \"\"IP: \"\"; hostname -I; uptime; curl -I -s https://github.com | head -n 1'\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Infra: Check worker1",
+      "type": "shell",
+      "options": {
+        "shell": {
+          "executable": "cmd.exe",
+          "args": ["/d", "/c"]
+        }
+      },
+      "command": "ssh -o BatchMode=yes -o ConnectTimeout=7 worker1 \"bash -lc 'printf \"\"HOST: \"\"; hostname; printf \"\"IP: \"\"; hostname -I; uptime; curl -I -s https://github.com | head -n 1'\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Infra: Check worker2",
+      "type": "shell",
+      "options": {
+        "shell": {
+          "executable": "cmd.exe",
+          "args": ["/d", "/c"]
+        }
+      },
+      "command": "ssh -o BatchMode=yes -o ConnectTimeout=7 worker2 \"bash -lc 'printf \"\"HOST: \"\"; hostname; printf \"\"IP: \"\"; hostname -I; uptime; curl -I -s https://github.com | head -n 1'\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Infra: Check ALL (bastion + workers)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Infra: Check bastion",
+        "Infra: Check worker1",
+        "Infra: Check worker2"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

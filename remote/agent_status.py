@@ -157,6 +157,79 @@ def os_release_pretty():
     return None
 
 
+def process_counts():
+    """
+    Быстрые метрики по процессам: всего, runnable (R), blocked (D).
+    """
+    total = 0
+    runnable = 0
+    blocked = 0
+    try:
+        for p in Path("/proc").iterdir():
+            if not p.name.isdigit():
+                continue
+            total += 1
+            try:
+                stat = (p / "stat").read_text(encoding="utf-8", errors="ignore")
+                after = stat.split(") ", 1)[1]
+                state = after.split(" ", 1)[0]
+                if state == "R":
+                    runnable += 1
+                elif state == "D":
+                    blocked += 1
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    return {"proc_total": total, "proc_runnable": runnable, "proc_blocked": blocked}
+
+
+def net_dev_stats():
+    """
+    Возвращает сетевую статистику по интерфейсам из /proc/net/dev.
+    rx/tx в байтах, пакеты, ошибки.
+    """
+    stats = {}
+    try:
+        lines = Path("/proc/net/dev").read_text(encoding="utf-8", errors="ignore").splitlines()
+        for line in lines[2:]:
+            if ":" not in line:
+                continue
+            iface, data = line.split(":", 1)
+            iface = iface.strip()
+            cols = data.split()
+            # cols: rx_bytes rx_packets rx_errs rx_drop ... tx_bytes tx_packets tx_errs tx_drop ...
+            if len(cols) >= 16:
+                stats[iface] = {
+                    "rx_bytes": int(cols[0]),
+                    "rx_packets": int(cols[1]),
+                    "rx_errs": int(cols[2]),
+                    "tx_bytes": int(cols[8]),
+                    "tx_packets": int(cols[9]),
+                    "tx_errs": int(cols[10]),
+                }
+    except Exception:
+        pass
+    return stats
+
+
+def default_iface():
+    """
+    Пытаемся определить основной интерфейс по маршруту по умолчанию.
+    """
+    try:
+        lines = Path("/proc/net/route").read_text(encoding="utf-8", errors="ignore").splitlines()
+        # Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT
+        for line in lines[1:]:
+            parts = line.split()
+            if len(parts) >= 2 and parts[1] == "00000000":  # default route
+                return parts[0]
+    except Exception:
+        pass
+    return None
+
+
 def main():
     host = os.uname().nodename
     cpu_cores = os.cpu_count()
@@ -177,6 +250,14 @@ def main():
     info.update(meminfo_bytes())
     info.update(swapinfo_bytes())
     info.update(disk_root())
+    info.update(process_counts())
+
+    # network
+    iface = default_iface()
+    info["default_iface"] = iface
+    nd = net_dev_stats()
+    info["net_ifaces"] = nd
+    info["net_default"] = nd.get(iface) if iface else None
 
     # производные метрики (оценка "свободно")
     cpu_usage = info.get("cpu_usage_pct")

@@ -1,44 +1,72 @@
+# Task Balancer
+
 ## Быстрый старт
 
-### Клонирование репозитория
+### 1) Клонирование репозитория
+
+Склонируй проект и перейди в папку:
 
 ```bash
 git clone https://github.com/nxhxl000/task_balancer.git
 cd task_balancer
+```
 
-Создание виртуального окружения и его обновление
+---
 
-Библиотеки и фреймворки окружения описаны в environment.yml
+### 2) Создание и активация окружения (Conda)
 
-Команды для создания и активации через conda:
+Все зависимости проекта описаны в файле `environment.yml`.
+
+Создай окружение:
 
 ```bash
 conda env create -f environment.yml
+```
+
+Активируй окружение:
+
+```bash
 conda activate vkr-fl-balancer
+```
 
+---
 
-Если environment.yml изменился (добавились/обновились зависимости), обнови окружение так:
+### 3) Обновление окружения
+
+Если `environment.yml` изменился (добавились/обновились зависимости), обнови окружение:
 
 ```bash
 conda env update -f environment.yml --prune
+```
+
+И снова активируй (если ты в новом терминале):
+
+```bash
 conda activate vkr-fl-balancer
+```
 
---prune удаляет пакеты, которые больше не перечислены в environment.yml, чтобы окружение не “захламлялось”.
+`--prune` удаляет пакеты, которых больше нет в `environment.yml`, чтобы окружение не “захламлялось”.
 
+---
 
-Все новые зависимости нужно фиксировать в environment.yml.
+### 4) Как добавлять новые библиотеки
 
-Рекомендуемый порядок:
+Любые новые зависимости **обязательно** добавляй в `environment.yml` (в `dependencies:` или в секцию `pip:`).
 
-1.Добавь библиотеку в environment.yml (в dependencies: или в секцию pip:).
-
-2.Примени изменения:
+После изменений обнови окружение:
 
 ```bash
 conda env update -f environment.yml --prune
+```
 
-3.Закоммить изменения environment.yml в репозиторий.
+---
+
+### 5) Как закоммитить изменения в репозиторий
+
+Добавь изменения и отправь их в репозиторий:
+
 ```bash
 git add environment.yml
 git commit -m "Update conda environment dependencies"
 git push
+```

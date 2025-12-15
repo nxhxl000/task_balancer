@@ -78,3 +78,38 @@ git push
 DATABASE_URL=postgresql://USER:PASSWORD@HOST/dbname?sslmode=require
 ```
 
+### 6) Запуск локальных Demo тестов оркестратора:
+
+Запускаем Оркестратор в отдельном терминале (два режима запуска):
+
+Реальный режим (сервис):
+
+```bash
+python -m app.orchestrator.run --mode real
+```
+Демо режим (завершится, если TIME сек нет задач):
+
+```bash
+python -m app.orchestrator.run --mode demo --idle-exit-seconds <TIME>
+```
+
+Команда для запуска демо прогона:
+
+```bash
+python -m scripts.run_demo --tasks 10 --sleep 2 --priority 1000 --timeout 180
+#--tasks  - сколько задач создать (enqueue) в таблицу tasks для этого прогона (run_id)
+#--sleep  - Сколько секунд будет “выполняться” каждая demo-задача (это значение попадает в payload.sleep_s)
+#--priority - Приоритет задач в очереди (поле priority в БД).
+#--timeout 180 - Максимальное время (в секундах), которое run_demo.py будет ждать завершения всех задач этого run_id
+```
+Команда для удаления демо задач из БД:
+
+```bash
+python -m scripts.db_reset_run --run-id <RUN ID> --yes
+```
+
+Команда для приведения реальных задач к исходному состоянию (если их тоже затронул Demo прогон):
+
+```bash
+python -m scripts.reset_real_tasks --only-backend local --yes
+```

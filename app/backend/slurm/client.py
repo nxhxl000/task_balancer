@@ -25,7 +25,13 @@ def _run(cmd: list[str]) -> str:
     return p.stdout.strip()
 
 
-def submit_demo_sleep(task_id: str, leased_by: str, sleep_s: int, payload: dict[str, Any]) -> SlurmJob:
+def submit_demo_sleep(
+    task_id: str,
+    leased_by: str,
+    sleep_s: int,
+    payload: dict[str, Any],
+    nodelist: Optional[str] = None,
+) -> SlurmJob:
     """
     Submit Slurm job (без shared FS):
       - job выполняет sleep / вычисления
@@ -57,7 +63,7 @@ def submit_demo_sleep(task_id: str, leased_by: str, sleep_s: int, payload: dict[
 
     # Python внутри job: делает sleep, формирует payload, подписывает и POST'ит в bastion
     job_py = f"""\
-import json, time, hmac, hashlib, urllib.request, traceback, os
+import json, time, hmac, hashlib, urllib.request, traceback, os, socket
 
 BASE = os.environ.get("RESULT_BASE_URL", {json.dumps(base_url)})
 SECRET = os.environ.get("RESULT_SECRET", "").encode("utf-8")
@@ -69,6 +75,11 @@ leased_by = {json.dumps(leased_by)}
 sleep_s = int({int(sleep_s)})
 
 payload = json.loads({payload_q})
+
+# ✅ метаданные о том, где реально выполнялся job
+slurm_job_id = os.environ.get("SLURM_JOB_ID", "")
+slurm_nodelist = os.environ.get("SLURM_NODELIST", "")
+node = os.environ.get("SLURMD_NODENAME") or socket.gethostname()
 
 def post(data: dict) -> None:
     body = json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
@@ -98,6 +109,11 @@ try:
         "task_type": "demo_sleep",
         "slept": sleep_s,
         "echo": payload,
+
+        # ✅ добавили: на каком узле/какой job
+        "node": node,
+        "slurm_job_id": slurm_job_id,
+        "slurm_nodelist": slurm_nodelist,
     }}
     post({{
         "task_id": task_id,
@@ -139,10 +155,12 @@ PY
         "--job-name", f"taskbal_{task_id[:8]}",
         "--output", stdout_path,
         "--error", stderr_path,
-        # ВАЖНО: чтобы RESULT_SECRET/RESULT_BASE_URL попали внутрь job
         "--export", "ALL,RESULT_BASE_URL,RESULT_SECRET",
         "--wrap", wrap,
     ]
+
+    if nodelist:
+        submit_cmd += ["--nodelist", nodelist]
 
     job_id = _run(submit_cmd)
 

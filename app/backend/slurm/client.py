@@ -25,74 +25,103 @@ def _run(cmd: list[str]) -> str:
     return p.stdout.strip()
 
 
-def submit_demo_sleep(task_id: str, sleep_s: int, payload: dict[str, Any]) -> SlurmJob:
+def submit_demo_sleep(task_id: str, leased_by: str, sleep_s: int, payload: dict[str, Any]) -> SlurmJob:
     """
-    MVP submit:
-    - создает workdir (желательно на общем FS, либо на bastion если воркеры видят этот путь)
-    - sbatch job:
-        * sleep
-        * пишет result.json (успех) либо error.txt (ошибка) в workdir
+    Submit Slurm job (без shared FS):
+      - job выполняет sleep / вычисления
+      - отправляет результат на bastion API: POST {RESULT_BASE_URL}/v1/task-result
+      - подпись: header x-task-sig = HMAC_SHA256(RESULT_SECRET, body_bytes).hexdigest()
+      - bastion (FastAPI) делает mark_done/mark_failed в БД
+
+    Требуемые env (должны быть доступны при sbatch, чтобы экспортнулись в job):
+      - RESULT_BASE_URL (например http://10.128.0.14:8080)
+      - RESULT_SECRET   (длинный секрет)
     """
-    base_dir = os.environ.get("SLURM_TASK_DIR", "/tmp/task_balancer")
-    workdir = os.path.join(base_dir, task_id)
-    os.makedirs(workdir, exist_ok=True)
+    base_url = os.environ.get("RESULT_BASE_URL", "http://10.128.0.14:8080")
 
-    stdout_path = os.path.join(workdir, "stdout.txt")
-    stderr_path = os.path.join(workdir, "stderr.txt")
-    result_path = os.path.join(workdir, "result.json")
-    error_path = os.path.join(workdir, "error.txt")
+    # Пути ниже чисто для логов/дебага (они на worker'е, bastion их не читает)
+    workdir = f"/tmp/task_balancer/{task_id}"
+    stdout_path = f"/tmp/taskbal_{task_id[:8]}_%j.out"
+    stderr_path = f"/tmp/taskbal_{task_id[:8]}_%j.err"
+    result_path = f"{workdir}/result.json"  # не используется, оставлено для совместимости
+    error_path = f"{workdir}/error.txt"     # не используется, оставлено для совместимости
 
-    # ВАЖНО: payload передаём как JSON-строку и экранируем для bash
     payload_json = json.dumps(payload, ensure_ascii=False)
     payload_q = shlex.quote(payload_json)  # безопасно для bash
 
-    # bash-скрипт для --wrap (ТОЛЬКО строка bash, без "bash -lc ...")
-    # Делает:
-    #  - sleep
-    #  - пытается написать result.json
-    #  - если что-то упало -> пишет error.txt и exit 1
-    wrap = f"""
-set -euo pipefail
-cd {shlex.quote(workdir)}
-sleep {int(sleep_s)}
-python3 - <<'PY'
-import json, sys, traceback
-payload = json.loads({payload_q})
-out = {{
-  "ok": True,
-  "task_type": "demo_sleep",
-  "slept": {int(sleep_s)},
-  "echo": payload
-}}
-open({json.dumps(result_path)}, "w", encoding="utf-8").write(json.dumps(out, ensure_ascii=False))
-print("WROTE_RESULT")
-PY
-""".strip()
+    # Python внутри job: делает sleep, формирует payload, подписывает и POST'ит в bastion
+    job_py = f"""\
+import json, time, hmac, hashlib, urllib.request, urllib.error, traceback, os
 
-    # Если python упадёт — set -e завершит job, но error.txt не появится.
-    # Поэтому делаем обёртку через bash, которая ловит ошибку и пишет error.txt:
+BASE = os.environ.get("RESULT_BASE_URL", {json.dumps(base_url)})
+SECRET = os.environ.get("RESULT_SECRET", "").encode("utf-8")
+if not SECRET:
+    raise SystemExit("RESULT_SECRET is empty")
+
+task_id = {json.dumps(task_id)}
+leased_by = {json.dumps(leased_by)}
+sleep_s = int({int(sleep_s)})
+
+payload = json.loads({payload_q})
+
+def post(data: dict) -> None:
+    body = json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    sig = hmac.new(SECRET, body, hashlib.sha256).hexdigest()
+    req = urllib.request.Request(
+        BASE + "/v1/task-result",
+        data=body,
+        headers={{"content-type": "application/json", "x-task-sig": sig}},
+        method="POST",
+    )
+    # ретраи на сеть
+    last_err = None
+    for _ in range(5):
+        try:
+            resp = urllib.request.urlopen(req, timeout=5).read().decode()
+            print(resp)
+            return
+        except Exception as e:
+            last_err = e
+            time.sleep(1)
+    raise last_err
+
+try:
+    time.sleep(sleep_s)
+    result = {{
+        "ok": True,
+        "task_type": "demo_sleep",
+        "slept": sleep_s,
+        "echo": payload,
+    }}
+    post({{
+        "task_id": task_id,
+        "leased_by": leased_by,
+        "ok": True,
+        "result": result
+    }})
+    raise SystemExit(0)
+except Exception as e:
+    err = str(e) + "\\n" + traceback.format_exc()
+    try:
+        post({{
+            "task_id": task_id,
+            "leased_by": leased_by,
+            "ok": False,
+            "error": err
+        }})
+    except Exception as e2:
+        print("FAILED_TO_POST_ERROR:", repr(e2))
+        print(err)
+    raise SystemExit(2)
+"""
+
     wrap = f"""
 set -euo pipefail
-cd {shlex.quote(workdir)}
-(
-  sleep {int(sleep_s)}
-  python3 - <<'PY'
-import json
-payload = json.loads({payload_q})
-out = {{
-  "ok": True,
-  "task_type": "demo_sleep",
-  "slept": {int(sleep_s)},
-  "echo": payload
-}}
-open({json.dumps(result_path)}, "w", encoding="utf-8").write(json.dumps(out, ensure_ascii=False))
-print("WROTE_RESULT")
+# локальный workdir на worker'е (не shared)
+mkdir -p {shlex.quote(workdir)}
+python3 - <<'PY'
+{job_py}
 PY
-) || (
-  code=$?
-  echo "demo_sleep failed with exit=$code" > {shlex.quote(error_path)}
-  exit $code
-)
 """.strip()
 
     submit_cmd = [
@@ -101,10 +130,13 @@ PY
         "--job-name", f"taskbal_{task_id[:8]}",
         "--output", stdout_path,
         "--error", stderr_path,
+        # ВАЖНО: чтобы RESULT_SECRET/RESULT_BASE_URL попали внутрь job
+        "--export", "ALL,RESULT_BASE_URL,RESULT_SECRET",
         "--wrap", wrap,
     ]
 
     job_id = _run(submit_cmd)
+
     return SlurmJob(
         job_id=job_id,
         workdir=workdir,
@@ -118,20 +150,23 @@ PY
 def get_job_state(job_id: str) -> tuple[str, Optional[int]]:
     """
     Без sacct:
-    - пока job виден в squeue -> возвращаем его состояние (RUNNING/PENDING/...)
-    - если job исчез из squeue -> возвращаем FINISHED (оркестратор читает result/error файлы)
+      - пока job виден в squeue -> возвращаем его состояние (RUNNING/PENDING/...)
+      - если job исчез из squeue -> FINISHED
     """
-    try:
-        # %T = state; -h без заголовка
-        out = _run(["squeue", "-j", str(job_id), "-h", "-o", "%T"])
-        state = out.strip()
-        if not state:
-            return ("FINISHED", None)
-        # Например: RUNNING, PENDING, COMPLETING...
-        return (state, None)
-    except Exception:
-        # если squeue вернул ошибку — считаем, что job уже не существует
+    p = subprocess.run(
+        ["squeue", "-j", str(job_id), "-h", "-o", "%T"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if p.returncode != 0:
         return ("FINISHED", None)
+
+    state = (p.stdout or "").strip()
+    if not state:
+        return ("FINISHED", None)
+
+    return (state, None)
 
 
 def read_json_file(path: str) -> dict[str, Any]:

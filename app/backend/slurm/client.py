@@ -37,7 +37,13 @@ def submit_demo_sleep(task_id: str, leased_by: str, sleep_s: int, payload: dict[
       - RESULT_BASE_URL (например http://10.128.0.14:8080)
       - RESULT_SECRET   (длинный секрет)
     """
-    base_url = os.environ.get("RESULT_BASE_URL", "http://10.128.0.14:8080")
+    base_url = os.environ.get("RESULT_BASE_URL", "").strip()
+    secret = os.environ.get("RESULT_SECRET", "").strip()
+
+    if not base_url:
+        raise RuntimeError("RESULT_BASE_URL is required (e.g. http://10.128.0.14:8080). Did you source .env?")
+    if not secret:
+        raise RuntimeError("RESULT_SECRET is required (must match bastion). Did you source .env?")
 
     # Пути ниже чисто для логов/дебага (они на worker'е, bastion их не читает)
     workdir = f"/tmp/task_balancer/{task_id}"
@@ -51,12 +57,12 @@ def submit_demo_sleep(task_id: str, leased_by: str, sleep_s: int, payload: dict[
 
     # Python внутри job: делает sleep, формирует payload, подписывает и POST'ит в bastion
     job_py = f"""\
-import json, time, hmac, hashlib, urllib.request, urllib.error, traceback, os
+import json, time, hmac, hashlib, urllib.request, traceback, os
 
 BASE = os.environ.get("RESULT_BASE_URL", {json.dumps(base_url)})
 SECRET = os.environ.get("RESULT_SECRET", "").encode("utf-8")
 if not SECRET:
-    raise SystemExit("RESULT_SECRET is empty")
+    raise SystemExit("RESULT_SECRET is empty (not exported into job)")
 
 task_id = {json.dumps(task_id)}
 leased_by = {json.dumps(leased_by)}
@@ -67,16 +73,16 @@ payload = json.loads({payload_q})
 def post(data: dict) -> None:
     body = json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     sig = hmac.new(SECRET, body, hashlib.sha256).hexdigest()
-    req = urllib.request.Request(
-        BASE + "/v1/task-result",
-        data=body,
-        headers={{"content-type": "application/json", "x-task-sig": sig}},
-        method="POST",
-    )
-    # ретраи на сеть
+
     last_err = None
     for _ in range(5):
         try:
+            req = urllib.request.Request(
+                BASE + "/v1/task-result",
+                data=body,
+                headers={{"content-type": "application/json", "x-task-sig": sig}},
+                method="POST",
+            )
             resp = urllib.request.urlopen(req, timeout=5).read().decode()
             print(resp)
             return
@@ -115,14 +121,17 @@ except Exception as e:
     raise SystemExit(2)
 """
 
-    wrap = f"""
+    # ВАЖНО: Slurm запускает --wrap через /bin/sh, поэтому set -o pipefail ломается.
+    # Решение: явно запускаем bash -lc "<script>"
+    script = f"""
 set -euo pipefail
-# локальный workdir на worker'е (не shared)
 mkdir -p {shlex.quote(workdir)}
 python3 - <<'PY'
 {job_py}
 PY
 """.strip()
+
+    wrap = f"bash -lc {shlex.quote(script)}"
 
     submit_cmd = [
         "sbatch",

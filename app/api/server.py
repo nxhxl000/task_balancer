@@ -11,8 +11,6 @@ from pydantic import BaseModel
 
 from app.core.queue import mark_done, mark_failed
 
-APP_SECRET = os.environ.get("RESULT_SECRET", "").encode("utf-8")
-
 app = FastAPI()
 
 
@@ -24,10 +22,16 @@ class ResultIn(BaseModel):
     error: Optional[str] = None
 
 
+def _get_secret() -> bytes:
+    # читаем секрет каждый раз (чтобы не зависеть от момента старта uvicorn)
+    return os.environ.get("RESULT_SECRET", "").encode("utf-8")
+
+
 def verify_sig(body: bytes, sig_hex: str) -> bool:
-    if not APP_SECRET:
+    secret = _get_secret()
+    if not secret:
         return False
-    mac = hmac.new(APP_SECRET, body, hashlib.sha256).hexdigest()
+    mac = hmac.new(secret, body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(mac, sig_hex)
 
 

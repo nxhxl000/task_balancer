@@ -191,3 +191,34 @@ def mark_failed(task_id: str, leased_by: str, error: str, retry: bool) -> None:
                 (new_status, error, new_status, new_status, new_status, new_status, task_id, leased_by),
             )
             conn.commit()
+
+
+TASK_STATUS_SQL = """
+SELECT
+  status,
+  error,
+  backend,
+  backend_job_id
+FROM tasks
+WHERE id = %s::uuid
+"""
+
+def get_task_status(task_id: str) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """
+    Возвращает (status, error, backend, backend_job_id) по task_id.
+    Нужно Slurm-orchestrator'у, чтобы ждать callback (done/failed) через БД.
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(TASK_STATUS_SQL, (task_id,))
+            row = cur.fetchone()
+            conn.commit()
+            if not row:
+                return (None, None, None, None)
+            # row ожидается dict-like, как у тебя выше
+            return (
+                row["status"],
+                row.get("error"),
+                row.get("backend"),
+                row.get("backend_job_id"),
+            )

@@ -4,6 +4,7 @@ import uuid
 import time
 import traceback
 from typing import Optional, Tuple
+import os
 
 from app.core.queue import lease_one_task, heartbeat, mark_running, mark_failed
 from app.core.db import get_conn
@@ -47,6 +48,10 @@ def main():
     p.add_argument("--finished-grace-seconds", type=int, default=20)
 
     args = p.parse_args()
+
+    for k in ("RESULT_BASE_URL", "RESULT_SECRET"):
+        if not os.environ.get(k):
+            raise SystemExit(f"[slurm-orch] missing env {k}. Did you 'source .env' before запуск?")
 
     print(f"[slurm-orch] leased_by={LEASED_BY} mode={args.mode} target_backend=slurm")
 
@@ -104,7 +109,10 @@ def main():
 
                 # Если callback уже обновил БД — мы заканчиваем этот task
                 if db_status in ("done", "failed", "canceled"):
-                    print(f"[slurm-orch] task={task.id} finished via DB status={db_status} job={db_job_id}")
+                    if db_status == "failed" and db_error:
+                        print(f"[slurm-orch] task={task.id} finished via DB status=failed job={db_job_id}\nerror:\n{db_error[:2000]}")
+                    else:
+                        print(f"[slurm-orch] task={task.id} finished via DB status={db_status} job={db_job_id}")
                     break
 
                 # Если задача внезапно вернулась в queued (например, кто-то reset'нул) — просто выходим из ожидания

@@ -19,28 +19,62 @@
   --gap: 10px;
 }
 
+/* ===== Page ===== */
 .tasks-page{
+  max-width: none;
+  width: 100%;
+  margin: 0;
   padding: 18px;
-  max-width: 1600px;   /* было 1200 */
-  width: min(1600px, calc(100vw - 32px));
-  margin: 0 auto;
+  padding-bottom: 34px; /* место под fixed horizontal scrollbar */
+  box-sizing: border-box;
+
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
   color: var(--text);
+  background: var(--bg);
 }
-
 
 .tasks-title{
   margin: 0 0 12px 0;
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
+/* ===== Filters ===== */
 .filters{
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 12px;
   box-shadow: var(--shadow);
+}
+
+.filters-grid{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+  align-items: flex-end;
+}
+
+.filters-left{
+  display: grid;
+  grid-template-columns: 160px minmax(240px, 1fr) 110px; /* status, task_type, n */
+  gap: 14px;
+  align-items: end;
+  flex: 1 1 760px;
+  min-width: 520px;
+}
+
+.filters-right{
+  display: grid;
+  grid-template-columns: 160px 110px auto; /* order, limit, actions */
+  gap: 14px;
+  align-items: end;
+  flex: 0 1 520px;
+  min-width: 420px;
+}
+
+.field{
+  min-width: 0;
 }
 
 .field label{
@@ -52,6 +86,7 @@
 
 .input, .select{
   width: 100%;
+  min-width: 0;
   height: var(--h);
   padding: 0 var(--padx);
   border: 1px solid var(--border2);
@@ -71,12 +106,14 @@
   box-shadow: 0 0 0 4px var(--ring);
 }
 
+/* Buttons / actions */
 .actions{
   display:flex;
   gap: 10px;
   align-items: center;
   justify-content: flex-end;
   height: var(--h);
+  min-width: 0;
 }
 
 .btn{
@@ -87,7 +124,7 @@
   background: #fff;
   color: var(--text);
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 800;
   transition: transform .05s ease, box-shadow .15s ease, border-color .15s ease;
 }
 
@@ -123,6 +160,7 @@
   user-select: none;
 }
 
+/* ===== Paging ===== */
 .paging{
   display:flex;
   gap: 10px;
@@ -139,9 +177,10 @@
   border: 1px solid var(--border);
   background: #f8fafc;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 900;
 }
 
+/* ===== Errors ===== */
 .err{
   margin-top: 10px;
   padding: 10px 12px;
@@ -150,19 +189,46 @@
   border-radius: 12px;
 }
 
+/* ===== Table + Details layout ===== */
+.tasks-main{
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 14px;
+  align-items: start;
+  margin-top: 12px;
+  min-width: 0;
+}
+
+/* On small screens details go down */
+@media (max-width: 1100px){
+  .tasks-main{
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Table ===== */
 .table-wrap{
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
   box-shadow: var(--shadow);
+  min-width: 0;
 }
 
+/* Allow horizontal overflow but hide its own scrollbar */
 .table-scroll{
   overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.table-scroll::-webkit-scrollbar{
+  height: 0;
 }
 
+/* Table must grow by content */
 table{
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -182,46 +248,189 @@ tr:hover td{
   background: #fafafa;
 }
 
+tr.is-selected td{
+  background: #f1f5ff;
+}
+
 .row-actions .btn{
   height: 32px;
   padding: 0 10px;
   border-radius: 10px;
-  font-weight: 600;
+  font-weight: 900;
 }
 
-/* 2 группы: слева фильтры, справа view-настройки */
-/* Верхняя панель: 2 группы, которые НЕ наезжают — просто переносятся */
-.filters-grid{
+th:nth-child(2), td:nth-child(2){ min-width: 120px; }
+th:nth-child(8), td:nth-child(8){ min-width: 220px; }
+th:nth-child(9), td:nth-child(9){ min-width: 140px; }
+
+.payload-short{
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* ===== Right column stack (Create + Details) ===== */
+.side-stack{
   display: flex;
-  flex-wrap: wrap;
-  gap: 40px;             /* расстояние между группами */
-  align-items: flex-end;
-}
-
-/* Левая группа: растягивается и может сжиматься */
-.filters-left{
-  display: grid;
-  grid-template-columns: 160px minmax(240px, 1fr) 110px; /* status, task_type, n */
+  flex-direction: column;
   gap: 14px;
-  align-items: end;
-  flex: 1 1 760px;       /* может уменьшаться и переноситься */
-  min-width: 520px;      /* чтобы не ломалось */
+  min-width: 0;
 }
 
-/* Правая группа: фиксируется по ширине, но тоже может переноситься */
-.filters-right{
+/* Generic panel */
+.panel{
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.panel-head{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #edf2f7;
+  background: #f8fafc;
+}
+
+.panel-title{
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.panel-body{
+  padding: 12px;
+}
+
+/* Create buttons: vertically stacked */
+.create-choices{
   display: grid;
-  grid-template-columns: 160px 110px auto; /* order, limit, actions */
-  gap: 14px;
-  align-items: end;
-  flex: 0 1 520px;       /* может сжиматься и уходить вниз */
-  min-width: 420px;
+  grid-template-columns: 1fr;
+  gap: 10px;
 }
 
-.field{ min-width: 0; }
-.select, .input{ min-width: 0; }
+.create-choices .btn{
+  width: 100%;
+  justify-content: center;
+}
 
-/* Адаптив: когда узко — по 2 в ряд */
+/* Create form */
+.create-subtitle{
+  margin-top: 12px;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.create-form{
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.field-inline label{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.textarea{
+  width: 100%;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  outline: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  resize: vertical;
+}
+.textarea:focus{
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px var(--ring);
+}
+
+.create-actions{
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.form-err{
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid #fda4af;
+  background: #fff1f2;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ===== Details panel ===== */
+.details{
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.details-head{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #edf2f7;
+  background: #f8fafc;
+}
+
+.details-title{
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.details-body{
+  padding: 12px;
+}
+
+.kv{
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 6px 10px;
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.kv span:nth-child(odd){
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.jsonbox{
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
+  overflow: auto;
+  max-height: 340px;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+/* ===== Responsive for filters ===== */
 @media (max-width: 860px){
   .filters-left{
     grid-template-columns: 1fr 1fr;
@@ -235,10 +444,50 @@ tr:hover td{
     justify-content: flex-start;
   }
 }
-
-/* Совсем узко — в столбик */
 @media (max-width: 520px){
   .filters-left, .filters-right{
     grid-template-columns: 1fr;
+    min-width: 0;
   }
+  .tasks-main{
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Fixed bottom horizontal scrollbar ===== */
+.hscroll{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+
+  height: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  background: rgba(255,255,255,.92);
+  backdrop-filter: blur(6px);
+
+  border-top: 1px solid var(--border);
+  z-index: 9999;
+}
+
+.hscroll.hidden{
+  display: none;
+}
+
+.hscroll-inner{
+  height: 1px;
+}
+
+/* nice scrollbar */
+.hscroll::-webkit-scrollbar{
+  height: 12px;
+}
+.hscroll::-webkit-scrollbar-thumb{
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+.hscroll::-webkit-scrollbar-track{
+  background: transparent;
 }

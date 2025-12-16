@@ -40,8 +40,9 @@ body {
 /* контейнер приложения, чтобы не было слишком широко */
 #root {
   width: 100%;
-  max-width: 1400px;
-  padding: 24px;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 h1 {

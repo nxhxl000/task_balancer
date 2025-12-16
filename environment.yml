@@ -3,6 +3,10 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11
+  - nodejs>=20
+  - fastapi               # веб-фреймворк
+  - uvicorn
+  - python-dotenv
   - pip
   - pip:
       - psycopg[binary]>=3.2.0

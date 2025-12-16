@@ -70,6 +70,7 @@ git add environment.yml
 git commit -m "Update conda environment dependencies"
 git push
 ```
+
 ### 6) Создай файл .env в корне проекта и добавь в него строку подключения Neon (PostgreSQL):
 
 Пример .env представлен в .env.example 
@@ -87,6 +88,7 @@ DATABASE_URL=postgresql://USER:PASSWORD@HOST/dbname?sslmode=require
 ```bash
 python -m app.orchestrator.run --mode real
 ```
+
 Демо режим (завершится, если TIME сек нет задач):
 
 ```bash
@@ -102,6 +104,7 @@ python -m scripts.run_demo --tasks 10 --sleep 2 --priority 1000 --timeout 180
 #--priority - Приоритет задач в очереди (поле priority в БД).
 #--timeout 180 - Максимальное время (в секундах), которое run_demo.py будет ждать завершения всех задач этого run_id
 ```
+
 Команда для удаления демо задач из БД:
 
 ```bash
@@ -112,4 +115,42 @@ python -m scripts.db_reset_run --run-id <RUN ID> --yes
 
 ```bash
 python -m scripts.reset_real_tasks --only-backend local --yes
+```
+
+---
+
+### frontend
+
+Создай файл .env в корне проекта и добавь в него строку расположения API:
+
+```bash
+VITE_TASK_API_URL=http://127.0.0.1:8000
+```
+
+Билд + запуск
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Откройте:  
+
+- API: <http://localhost:8000/docs>  
+- фронт: <http://localhost:5173> — нажмите «Загрузить список», появятся записи из БД.
+
+---
+
+## ✅ Быстрый старт (после клонирования)
+
+```bash
+# Backend # FastApi
+conda activate task-balancer
+uvicorn fast-app-api.app:app --reload --port 8000
+
+# Frontend
+cd frontend
+npm install
+npm run dev
 ```

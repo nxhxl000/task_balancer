@@ -1,0 +1,244 @@
+:root{
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+
+  --border: #e2e8f0;
+  --border2: #cbd5e1;
+
+  --ring: rgba(59,130,246,.35);
+
+  --radius: 12px;
+  --radius-sm: 10px;
+
+  --shadow: 0 1px 2px rgba(15,23,42,.06), 0 8px 24px rgba(15,23,42,.06);
+
+  --h: 40px;
+  --padx: 12px;
+  --gap: 10px;
+}
+
+.tasks-page{
+  padding: 18px;
+  max-width: 1600px;   /* было 1200 */
+  width: min(1600px, calc(100vw - 32px));
+  margin: 0 auto;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  color: var(--text);
+}
+
+
+.tasks-title{
+  margin: 0 0 12px 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.filters{
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  box-shadow: var(--shadow);
+}
+
+.field label{
+  display:block;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 6px 2px;
+}
+
+.input, .select{
+  width: 100%;
+  height: var(--h);
+  padding: 0 var(--padx);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--text);
+  outline: none;
+  transition: box-shadow .15s ease, border-color .15s ease, transform .05s ease;
+}
+
+.input::placeholder{
+  color: #94a3b8;
+}
+
+.input:focus, .select:focus{
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px var(--ring);
+}
+
+.actions{
+  display:flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  height: var(--h);
+}
+
+.btn{
+  height: var(--h);
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border2);
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 600;
+  transition: transform .05s ease, box-shadow .15s ease, border-color .15s ease;
+}
+
+.btn:hover{
+  border-color: #94a3b8;
+  box-shadow: 0 6px 18px rgba(15,23,42,.08);
+}
+.btn:active{
+  transform: translateY(1px);
+}
+.btn:disabled{
+  opacity: .6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-primary{
+  border-color: #3b82f6;
+  background: #3b82f6;
+  color: #fff;
+}
+.btn-primary:hover{
+  border-color: #2563eb;
+  background: #2563eb;
+}
+
+.chk{
+  display:flex;
+  gap: 8px;
+  align-items:center;
+  color: var(--muted);
+  font-size: 13px;
+  user-select: none;
+}
+
+.paging{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  margin: 12px 0 10px 0;
+  color: var(--muted);
+}
+
+.pill{
+  display:inline-flex;
+  align-items:center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.err{
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #fda4af;
+  background: #fff1f2;
+  border-radius: 12px;
+}
+
+.table-wrap{
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.table-scroll{
+  overflow-x: auto;
+}
+
+table{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+thead{
+  background: #f8fafc;
+}
+
+th, td{
+  padding: 12px;
+  border-bottom: 1px solid #edf2f7;
+  text-align: left;
+  white-space: nowrap;
+}
+
+tr:hover td{
+  background: #fafafa;
+}
+
+.row-actions .btn{
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+/* 2 группы: слева фильтры, справа view-настройки */
+/* Верхняя панель: 2 группы, которые НЕ наезжают — просто переносятся */
+.filters-grid{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;             /* расстояние между группами */
+  align-items: flex-end;
+}
+
+/* Левая группа: растягивается и может сжиматься */
+.filters-left{
+  display: grid;
+  grid-template-columns: 160px minmax(240px, 1fr) 110px; /* status, task_type, n */
+  gap: 14px;
+  align-items: end;
+  flex: 1 1 760px;       /* может уменьшаться и переноситься */
+  min-width: 520px;      /* чтобы не ломалось */
+}
+
+/* Правая группа: фиксируется по ширине, но тоже может переноситься */
+.filters-right{
+  display: grid;
+  grid-template-columns: 160px 110px auto; /* order, limit, actions */
+  gap: 14px;
+  align-items: end;
+  flex: 0 1 520px;       /* может сжиматься и уходить вниз */
+  min-width: 420px;
+}
+
+.field{ min-width: 0; }
+.select, .input{ min-width: 0; }
+
+/* Адаптив: когда узко — по 2 в ряд */
+@media (max-width: 860px){
+  .filters-left{
+    grid-template-columns: 1fr 1fr;
+    min-width: 0;
+  }
+  .filters-right{
+    grid-template-columns: 1fr 1fr;
+    min-width: 0;
+  }
+  .actions{
+    justify-content: flex-start;
+  }
+}
+
+/* Совсем узко — в столбик */
+@media (max-width: 520px){
+  .filters-left, .filters-right{
+    grid-template-columns: 1fr;
+  }
+}

@@ -78,10 +78,12 @@ def main():
         idle_start = None
 
         try:
-            if task.task_type != "demo_sleep":
-                raise NotImplementedError(
-                    f"Slurm backend supports only demo_sleep right now, got {task.task_type}"
-                )
+            SUPPORTED = {
+                "complete_latin_square_from_prefix",
+                "search_mols",
+            }
+            if task.task_type not in SUPPORTED:
+                raise NotImplementedError(f"... got {task.task_type}")
 
             sleep_s = int(task.payload.get("sleep_s", 1))
 

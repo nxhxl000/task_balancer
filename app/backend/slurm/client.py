@@ -173,6 +173,157 @@ PY
         error_path=error_path,
     )
 
+def submit_ls_worker_job(
+    task_id: str,
+    leased_by: str,
+    task_type: str,
+    payload: dict,
+    nodelist: Optional[str] = None,
+) -> SlurmJob:
+    base_url = os.environ.get("RESULT_BASE_URL", "").strip()
+    secret = os.environ.get("RESULT_SECRET", "").strip()
+    if not base_url:
+        raise RuntimeError("RESULT_BASE_URL is required")
+    if not secret:
+        raise RuntimeError("RESULT_SECRET is required")
+
+    workdir = f"/tmp/task_balancer/{task_id}"
+    stdout_path = f"/tmp/taskbal_{task_id[:8]}_%j.out"
+    stderr_path = f"/tmp/taskbal_{task_id[:8]}_%j.err"
+
+    # Важно: task.payload из БД будет содержимым для поля "payload" в Go InRequest
+    # (т.е. именно то, что Go ожидает в PayloadComplete/PayloadMOLS)
+    # Остальные поля можно взять из payload или поставить дефолты:
+    budget = payload.get("budget", {})
+    output = payload.get("output", {})
+    seed = payload.get("seed", 0)
+
+    in_req = {
+        "task_id": task_id,
+        "problem": task_type,   # <-- совпадает со switch в Go
+        "budget": {
+            "min_runtime_sec": int(budget.get("min_runtime_sec", 5)),
+            "time_limit_sec": int(budget.get("time_limit_sec", 60)),
+            "max_steps": int(budget.get("max_steps", 0)),
+            "max_nodes": int(budget.get("max_nodes", 0)),
+        },
+        "seed": int(seed),
+        "output": {
+            "return_one_solution": bool(output.get("return_one_solution", True)),
+            "return_squares": bool(output.get("return_squares", True)),
+            "max_solutions": int(output.get("max_solutions", 1)),
+        },
+        "payload": payload.get("payload", payload),  # <-- важно: где хранится “реальный” payload
+    }
+
+    in_json = json.dumps(in_req, ensure_ascii=False)
+    in_q = shlex.quote(in_json)
+
+    # путь к бинарнику на worker (ты его положил в /home/gleb/ls_worker)
+    # можно переопределять env’ом, если нужно:
+    ls_path = os.environ.get("LS_WORKER_PATH", "/home/gleb/ls_worker")
+
+    job_py = f"""\
+import json, time, hmac, hashlib, urllib.request, traceback, os, socket, subprocess, pathlib
+
+BASE = os.environ.get("RESULT_BASE_URL", {json.dumps(base_url)})
+SECRET = os.environ.get("RESULT_SECRET", "").encode("utf-8")
+if not SECRET:
+    raise SystemExit("RESULT_SECRET is empty (not exported into job)")
+
+task_id = {json.dumps(task_id)}
+leased_by = {json.dumps(leased_by)}
+workdir = {json.dumps(workdir)}
+ls_path = os.environ.get("LS_WORKER_PATH", {json.dumps(ls_path)})
+
+pathlib.Path(workdir).mkdir(parents=True, exist_ok=True)
+in_path = os.path.join(workdir, "in.json")
+out_path = os.path.join(workdir, "out.json")
+
+req = json.loads({in_q})
+open(in_path, "w", encoding="utf-8").write(json.dumps(req, ensure_ascii=False, indent=2))
+
+slurm_job_id = os.environ.get("SLURM_JOB_ID", "")
+slurm_nodelist = os.environ.get("SLURM_NODELIST", "")
+node = os.environ.get("SLURMD_NODENAME") or socket.gethostname()
+
+def post(data: dict) -> None:
+    body = json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    sig = hmac.new(SECRET, body, hashlib.sha256).hexdigest()
+    req = urllib.request.Request(
+        BASE + "/v1/task-result",
+        data=body,
+        headers={{"content-type": "application/json", "x-task-sig": sig}},
+        method="POST",
+    )
+    urllib.request.urlopen(req, timeout=10).read()
+
+try:
+    p = subprocess.run([ls_path, "-in", in_path, "-out", out_path], capture_output=True, text=True)
+    stdout = (p.stdout or "")[:4000]
+    stderr = (p.stderr or "")[:4000]
+
+    if p.returncode != 0:
+        raise RuntimeError(f"ls_worker failed rc={{p.returncode}}\\nSTDOUT:\\n{{stdout}}\\nSTDERR:\\n{{stderr}}")
+
+    out = json.loads(open(out_path, "r", encoding="utf-8").read())
+
+    # добавим мету про ноду/джоб (удобно для отчёта)
+    out.setdefault("debug", {{}})
+    if isinstance(out["debug"], dict):
+        out["debug"].update({{
+            "node": node,
+            "slurm_job_id": slurm_job_id,
+            "slurm_nodelist": slurm_nodelist,
+        }})
+
+    post({{
+        "task_id": task_id,
+        "leased_by": leased_by,
+        "ok": True,
+        "result": out
+    }})
+    raise SystemExit(0)
+
+except Exception as e:
+    err = str(e) + "\\n" + traceback.format_exc()
+    try:
+        post({{
+            "task_id": task_id,
+            "leased_by": leased_by,
+            "ok": False,
+            "error": err
+        }})
+    except Exception as e2:
+        print("FAILED_TO_POST_ERROR:", repr(e2))
+        print(err)
+    raise SystemExit(2)
+"""
+
+    script = f"""
+set -euo pipefail
+mkdir -p {shlex.quote(workdir)}
+python3 - <<'PY'
+{job_py}
+PY
+""".strip()
+
+    wrap = f"bash -lc {shlex.quote(script)}"
+    submit_cmd = [
+        "sbatch", "--parsable",
+        "--job-name", f"taskbal_{task_id[:8]}",
+        "--output", stdout_path,
+        "--error", stderr_path,
+        "--export", "ALL,RESULT_BASE_URL,RESULT_SECRET,LS_WORKER_PATH",
+        "--wrap", wrap,
+    ]
+    if nodelist:
+        submit_cmd += ["--nodelist", nodelist]
+
+    job_id = _run(submit_cmd)
+    return SlurmJob(job_id=str(job_id), workdir=workdir,
+                    stdout_path=stdout_path, stderr_path=stderr_path,
+                    result_path=f"{workdir}/out.json", error_path=f"{workdir}/error.txt")
 
 def get_job_state(job_id: str) -> tuple[str, Optional[int]]:
     """

@@ -117,6 +117,16 @@ python -m scripts.db_reset_run --run-id <RUN ID> --yes
 python -m scripts.reset_real_tasks --only-backend local --yes
 ```
 
+### 6) Перезапуск ВМ для BOINC сервера:
+
+При остановке и звпуске ВМ меняется публичный ID
+Необходимо на BOINC сервере изменить файл .env и указать там актуальный ID ВМ:
+
+```bash
+# the URL the server thinks its at
+URL_BASE=http://158.160.21.144
+```
+
 ---
 
 ### frontend
